@@ -8,6 +8,7 @@ import {
   getDoc,
   onSnapshot,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
@@ -40,11 +41,17 @@ const Chat = () => {
         setChat(res.data());
       } else {
         setChat(null);
-        toast.error("Chat not found");
+        console.log("Chat not found, creating new chat structure");
       }
     }, (err) => {
       console.error("Chat subscription error:", err);
-      toast.error("Failed to load chat");
+      if (err.code === 'permission-denied') {
+        toast.error("Permission denied. Please check your authentication.");
+      } else if (err.code === 'unavailable') {
+        toast.error("Service unavailable. Please check your connection.");
+      } else {
+        toast.error("Failed to load chat: " + err.message);
+      }
     });
 
     return () => {
@@ -59,7 +66,44 @@ const Chat = () => {
 
   const handleSend = async () => {
     if (!text) return; // Prevent empty messages
+    if (!currentUser?.id || !chatId) {
+      toast.error("User not authenticated or chat not selected");
+      return;
+    }
+    
+    // Debug authentication
+    console.log("=== DEBUG INFO ===");
+    console.log("Current user:", currentUser);
+    console.log("User ID:", currentUser?.id);
+    console.log("Chat ID:", chatId);
+    console.log("Firebase project:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
+    console.log("Environment:", import.meta.env.MODE);
+    console.log("Firebase API Key exists:", !!import.meta.env.VITE_FIREBASE_API_KEY);
+    console.log("Firebase API Key is demo:", import.meta.env.VITE_FIREBASE_API_KEY?.includes('demo'));
+    
+    // Check if Firebase is properly configured
+    if (import.meta.env.DEV && (!import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY.includes('demo'))) {
+      toast.info("Firebase not configured. This is a demo mode - messages won't be saved.");
+      setText("");
+      return;
+    }
+    
     try {
+      // First, try to read the chat document to test permissions
+      console.log("Testing read permissions for chat:", chatId);
+      const chatDoc = await getDoc(doc(db, "chats", chatId));
+      console.log("Chat document exists:", chatDoc.exists());
+      
+      if (!chatDoc.exists()) {
+        console.log("Chat document doesn't exist, creating it first...");
+        await setDoc(doc(db, "chats", chatId), {
+          messages: [],
+          createdAt: new Date(),
+        });
+        console.log("Chat document created successfully");
+      }
+      
+      console.log("Attempting to update chat with message...");
       await updateDoc(doc(db, "chats", chatId), {
         messages: arrayUnion({
           senderId: currentUser.id,
@@ -67,6 +111,7 @@ const Chat = () => {
           createdAt: new Date(),
         }),
       });
+      console.log("Message sent successfully");
 
       const userIDs = [currentUser.id, user.id];
 
@@ -94,7 +139,13 @@ const Chat = () => {
       }
     } catch (err) {
       console.error("Send error:", err);
-      toast.error("Failed to send message");
+      if (err.code === 'permission-denied') {
+        toast.error("Permission denied. Please check your Firebase rules or authentication status.");
+      } else if (err.code === 'unavailable') {
+        toast.error("Service unavailable. Please check your internet connection.");
+      } else {
+        toast.error("Failed to send message: " + err.message);
+      }
     } finally {
       setText("");
     }
@@ -117,12 +168,12 @@ const Chat = () => {
         </div>
       </div>
       <div className="center">
-        {chat?.messages?.map((message) => (
+        {chat?.messages?.map((message, index) => (
           <div
             className={
               message.senderId === currentUser?.id ? "message own" : "message"
             }
-            key={message?.createdAt}
+            key={`${message.senderId}-${message.createdAt?.toDate?.() || index}`}
           >
             <div className="texts">
               <p>{message.text}</p>

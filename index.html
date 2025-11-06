@@ -5,6 +5,50 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TEXTOPIA</title>
+    
+    <!-- OneSignal SDK - Only load in production -->
+    <script>
+      // Only load OneSignal in production to avoid tracking prevention issues
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('127.0.0.1')) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.js';
+        script.async = true;
+        document.head.appendChild(script);
+        
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/OneSignalSDKWorker.js')
+            .then(function(registration) {
+              console.log('OneSignal Service Worker registered:', registration);
+            })
+            .catch(function(error) {
+              console.log('OneSignal Service Worker registration failed:', error);
+            });
+        }
+      } else {
+        console.log('OneSignal disabled in development mode');
+        // Unregister any existing service workers and register development worker
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) {
+              if (registration.scope.includes('OneSignal')) {
+                registration.unregister();
+                console.log('OneSignal service worker unregistered');
+              }
+            }
+          });
+          
+          // Register development service worker
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+              console.log('Development service worker registered');
+            })
+            .catch(function(error) {
+              console.log('Development service worker registration failed:', error);
+            });
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

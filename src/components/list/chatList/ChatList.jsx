@@ -28,7 +28,7 @@ const ChatList = () => {
       async (res) => {
         if (!res.exists()) {
           setChats([]);
-          toast.info("No chats found. Add a user to start chatting!");
+          console.log("No userchats document found, creating empty chat list");
           return;
         }
 
@@ -60,7 +60,7 @@ const ChatList = () => {
         if (err.code === "unavailable") {
           toast.error("You are offline. Please check your connection.");
         } else if (err.code === "permission-denied") {
-          toast.error("Permission denied. Check Firestore rules or authentication.");
+          toast.error("Permission denied. Please check your authentication and Firestore rules.");
         } else {
           toast.error("Failed to load chats: " + err.message);
         }
@@ -136,10 +136,10 @@ const ChatList = () => {
         />
       </div>
       {filteredChats.length === 0 && <p>No chats found.</p>}
-      {filteredChats.map((chat) => (
+      {filteredChats.map((chat, index) => (
         <div
           className="item"
-          key={chat.chatId}
+          key={`chat-${chat.chatId}-${chat.user?.id || 'unknown'}-${index}`}
           onClick={() => handleSelect(chat)}
           style={{
             backgroundColor: chat?.isSeen ? "transparent" : "#5183fe",
